@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: drupal
+      POSTGRES_USER: drupaluser
+      POSTGRES_PASSWORD: drupalpassword
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - drupal-net
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      stop_grace_period: 20s
+      labels:
+        com.example.app: "drupal-db"
+      update_config:
+        max_attempts: 3
+        window: 30s
+
+  drupal:
+    image: drupal:latest
+    depends_on:
+      - db
+    environment:
+      DRUPAL_DB_URL: postgres://drupaluser:drupalpassword@db:5432/drupal
+    ports:
+      - "8080:80"
+    networks:
+      - drupal-net
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+      stop_grace_period: 30s
+      labels:
+        com.example.app: "drupal"
+      update_config:
+        max_attempts: 2
+        window: 20s
+      secrets:
+        - db_password
+
+volumes:
+  db_data:
+
+secrets:
+  db_password:
+    external: true
+
+networks:
+  drupal-net:
+    driver: overlay
